@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
-const ObjectId = require('mongodb').ObjectId;
+const ObjectId = require("mongodb").ObjectId;
 const app = express();
 require("dotenv").config();
 const { MongoClient } = require("mongodb");
@@ -60,6 +60,14 @@ async function run() {
       res.send(users);
     });
 
+    //check Admin or not
+    app.get("/admin/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      const user = await usersCollection.findOne({ email: email });
+      const isAdmin = user.role === "admin";
+      res.send({ admin: isAdmin });
+    });
+
     //sending appointment data to database
     app.post("/appointments", async (req, res) => {
       const appointmentData = req.body;
@@ -74,13 +82,21 @@ async function run() {
     //   res.json(result);
     // });
 
-    app.put('/users/admin/:email', async (req, res) =>{
+    app.put("/users/admin/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
-      const filter = {email:email};
-      const updateDoc = { $set: {role:'admin'} };
-      const result = await usersCollection.updateOne( filter, updateDoc );
-      res.send(result);
-    })
+      const requesterEmail = req.decoded.email;
+      const requester = await usersCollection.findOne({
+        email: requesterEmail,
+      });
+      if (requester.role === "admin") {
+        const filter = { email: email };
+        const updateDoc = { $set: { role: "admin" } };
+        const result = await usersCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      } else {
+        res.status(403).send({ message: "Forbidden Access" });
+      }
+    });
 
     app.put("/users", async (req, res) => {
       const userData = req.body;
@@ -100,20 +116,19 @@ async function run() {
       res.json({ result, token });
     });
 
-
     //delete data from DB
     app.delete("/appointments/:id", async (req, res) => {
       const id = req.params.id;
-      const query = { _id : ObjectId(id) }
+      const query = { _id: ObjectId(id) };
       const result = await appointmentCollection.deleteOne(query);
       if (result.deletedCount === 1) {
-        res.json(result)
-
+        res.json(result);
       } else {
-        res.json({error:"No documents matched the query. Deleted 0 documents."});
+        res.json({
+          error: "No documents matched the query. Deleted 0 documents.",
+        });
       }
-    })
-
+    });
 
     console.log("Database Connected Successfully");
   } finally {
