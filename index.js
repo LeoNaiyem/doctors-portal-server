@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const ObjectId = require('mongodb').ObjectId;
 const app = express();
 require("dotenv").config();
 const { MongoClient } = require("mongodb");
@@ -48,7 +49,7 @@ async function run() {
         const query = { email: email, date: date };
         const cursor = appointmentCollection.find(query);
         const appointments = await cursor.toArray();
-        return res.json(appointments);
+        return res.send(appointments);
       } else {
         return res.status(401).send("Forbidden Access");
       }
@@ -67,11 +68,19 @@ async function run() {
     });
 
     //sending users data to users collection
-    app.post("/users", async (req, res) => {
-      const userData = req.body;
-      const result = await usersCollection.insertOne(userData);
-      res.json(result);
-    });
+    // app.post("/users", async (req, res) => {
+    //   const userData = req.body;
+    //   const result = await usersCollection.insertOne(userData);
+    //   res.json(result);
+    // });
+
+    app.put('/users/admin/:email', async (req, res) =>{
+      const email = req.params.email;
+      const filter = {email:email};
+      const updateDoc = { $set: {role:'admin'} };
+      const result = await usersCollection.updateOne( filter, updateDoc );
+      res.send(result);
+    })
 
     app.put("/users", async (req, res) => {
       const userData = req.body;
@@ -90,6 +99,21 @@ async function run() {
       );
       res.json({ result, token });
     });
+
+
+    //delete data from DB
+    app.delete("/appointments/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id : ObjectId(id) }
+      const result = await appointmentCollection.deleteOne(query);
+      if (result.deletedCount === 1) {
+        res.json(result)
+
+      } else {
+        res.json({error:"No documents matched the query. Deleted 0 documents."});
+      }
+    })
+
 
     console.log("Database Connected Successfully");
   } finally {
