@@ -37,10 +37,28 @@ async function run() {
   try {
     await client.connect();
     const database = client.db("doctors_portal");
+    const serviceCollection = database.collection("services");
     const appointmentCollection = database.collection("appointment");
     const usersCollection = database.collection("users");
+    const doctorCollection = database.collection("doctors");
 
     //load data from database
+
+    //loading services
+    app.get("/services", async (req, res) => {
+      const services = await serviceCollection.find().toArray();
+      res.send(services);
+    });
+    //loading services name
+    app.get("/services/name", async (req, res) => {
+      const servicesName = await serviceCollection
+        .find()
+        .project({ name: 1, _id: 0 })
+        .toArray();
+      res.send(servicesName);
+    });
+
+    //loading booked appointments
     app.get("/appointments", verifyJWT, async (req, res) => {
       const email = req.query.email;
       const date = req.query.date;
@@ -111,7 +129,7 @@ async function run() {
       const token = jwt.sign(
         { email: userData.email },
         process.env.ACCESS_SECRET_TOKEN,
-        { expiresIn: "1hr" }
+        { expiresIn: "5hr" }
       );
       res.json({ result, token });
     });
@@ -129,6 +147,13 @@ async function run() {
         });
       }
     });
+
+    // doctors routes
+    app.post('/doctors', async (req, res) => {
+      const doctor = req.body;
+      const result = await doctorCollection.insertOne(doctor);
+      res.send(result);
+    })
 
     console.log("Database Connected Successfully");
   } finally {
