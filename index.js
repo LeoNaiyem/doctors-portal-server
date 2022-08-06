@@ -42,6 +42,18 @@ async function run() {
     const usersCollection = database.collection("users");
     const doctorCollection = database.collection("doctors");
 
+    const verifyAdmin = async (req, res, next) => {
+      const requesterEmail = req.decoded.email;
+      const requester = await usersCollection.findOne({
+        email: requesterEmail,
+      });
+      if (requester.role === "admin") {
+        next();
+      } else {
+        res.status(403).send({ message: "Forbidden Access" });
+      }
+    };
+
     //load data from database
 
     //loading services
@@ -56,6 +68,12 @@ async function run() {
         .project({ name: 1, _id: 0 })
         .toArray();
       res.send(servicesName);
+    });
+
+    //loading doctors information
+    app.get("/doctors", verifyJWT, verifyAdmin, async (req, res) => {
+      const doctors = await doctorCollection.find({}).toArray();
+      res.send(doctors);
     });
 
     //loading booked appointments
@@ -100,20 +118,12 @@ async function run() {
     //   res.json(result);
     // });
 
-    app.put("/users/admin/:email", verifyJWT, async (req, res) => {
+    app.put("/users/admin/:email", verifyJWT, verifyAdmin, async (req, res) => {
       const email = req.params.email;
-      const requesterEmail = req.decoded.email;
-      const requester = await usersCollection.findOne({
-        email: requesterEmail,
-      });
-      if (requester.role === "admin") {
-        const filter = { email: email };
-        const updateDoc = { $set: { role: "admin" } };
-        const result = await usersCollection.updateOne(filter, updateDoc);
-        res.send(result);
-      } else {
-        res.status(403).send({ message: "Forbidden Access" });
-      }
+      const filter = { email: email };
+      const updateDoc = { $set: { role: "admin" } };
+      const result = await usersCollection.updateOne(filter, updateDoc);
+      res.send(result);
     });
 
     app.put("/users", async (req, res) => {
@@ -135,6 +145,8 @@ async function run() {
     });
 
     //delete data from DB
+
+    //delete appointment
     app.delete("/appointments/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
@@ -148,12 +160,26 @@ async function run() {
       }
     });
 
+    //delete doctor
+    app.delete("/doctors/:id", verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const result = await doctorCollection.deleteOne(query);
+      if (result.deletedCount === 1) {
+        res.json(result);
+      } else {
+        res.json({
+          error: "No documents matched the query. Deleted 0 documents.",
+        });
+      }
+    });
+
     // doctors routes
-    app.post('/doctors', async (req, res) => {
+    app.post("/doctors", verifyJWT, verifyAdmin, async (req, res) => {
       const doctor = req.body;
       const result = await doctorCollection.insertOne(doctor);
       res.send(result);
-    })
+    });
 
     console.log("Database Connected Successfully");
   } finally {
